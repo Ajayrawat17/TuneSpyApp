@@ -70,68 +70,66 @@ def generate_fingerprint(audio_path):
         print(f"[ERROR] Fingerprint generation failed: {e}")
         return None
 
-# === Match Fingerprint with MongoDB (with offset matching + confidence) === #
+# === Updated Match Fingerprint Function === #
 def match_fingerprint(input_fingerprints):
     if not input_fingerprints:
         return None
 
-    input_hashes = [fp["hash"] for fp in input_fingerprints]
-    input_offsets = [fp["offset"] for fp in input_fingerprints]
-    input_hash_offset_map = defaultdict(list)
-    for h, o in zip(input_hashes, input_offsets):
-        input_hash_offset_map[h].append(o)
+    input_hash_map = defaultdict(list)
+    for fp in input_fingerprints:
+        input_hash_map[fp["hash"]].append(fp["offset"])
 
     all_songs = songs_collection.find()
-
     best_match = None
     best_match_score = 0
-    best_match_offset_diff = None
+    best_confidence = 0
+    best_match_offset = None
 
     for song in all_songs:
         song_fingerprints = song.get("fingerprint", [])
-        song_hash_offset_map = defaultdict(list)
+        song_hash_map = defaultdict(list)
         for fp in song_fingerprints:
-            song_hash_offset_map[fp["hash"]].append(fp["offset"])
+            song_hash_map[fp["hash"]].append(fp["offset"])
 
         offset_diff_counter = Counter()
 
-        # Find common hashes and count offset differences
-        for h in input_hash_offset_map:
-            if h in song_hash_offset_map:
-                for input_offset in input_hash_offset_map[h]:
-                    for song_offset in song_hash_offset_map[h]:
-                        diff = song_offset - input_offset
-                        offset_diff_counter[diff] += 1
+        match_counter = 0
+
+        for h in input_hash_map:
+            if h in song_hash_map:
+                for input_offset in input_hash_map[h]:
+                    for song_offset in song_hash_map[h]:
+                        offset_diff = song_offset - input_offset
+                        offset_diff_counter[offset_diff] += 1
+                        match_counter += 1
 
         if not offset_diff_counter:
             continue
 
-        # Most common offset difference and how many matches it has
-        most_common_offset, match_count = offset_diff_counter.most_common(1)[0]
+        most_common_offset, most_common_count = offset_diff_counter.most_common(1)[0]
+        confidence = most_common_count / len(input_fingerprints)
 
-        # Calculate confidence score (match count divided by total input hashes)
-        confidence = match_count / len(input_fingerprints)
+        MIN_MATCH_COUNT = 15
+        MIN_CONFIDENCE = 0.15
 
-        # Thresholds for considering a good match
-        MIN_MATCH_COUNT = 10
-        MIN_CONFIDENCE = 0.1  # 10% matches
-
-        if match_count >= MIN_MATCH_COUNT and confidence >= MIN_CONFIDENCE:
-            if match_count > best_match_score:
-                best_match_score = match_count
+        if most_common_count >= MIN_MATCH_COUNT and confidence >= MIN_CONFIDENCE:
+            if most_common_count > best_match_score:
+                best_match_score = most_common_count
                 best_match = song
-                best_match_offset_diff = most_common_offset
+                best_confidence = confidence
+                best_match_offset = most_common_offset
 
     if best_match:
         return {
             "song_name": best_match.get("song_name"),
             "artist_name": best_match.get("artist_name", "Unknown Artist"),
             "match_count": best_match_score,
-            "offset_difference": best_match_offset_diff,
-            "confidence": best_match_score / len(input_fingerprints)
+            "offset_difference": best_match_offset,
+            "confidence": round(best_confidence, 3)
         }
     else:
         return None
+
 
 # === Process Audio File Uploaded from Frontend === #
 def process_audio_from_frontend(audio_path):

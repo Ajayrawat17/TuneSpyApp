@@ -208,31 +208,41 @@ class _HomeScreenState extends State<HomeScreen>
         title: Text('TuneSpy'),
         backgroundColor: Colors.blueAccent,
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            buildMicButton(),
-            SizedBox(height: 30),
-            Text(
-              isRecording ? "Recording in progress..." : "Tap the mic to start",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-            ),
-            SizedBox(height: 40),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 30.0, vertical: 15.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                backgroundColor: Colors.blueAccent,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              buildMicButton(),
+              SizedBox(height: 30),
+              Text(
+                isRecording
+                    ? "Recording in progress..."
+                    : "Tap the mic to start",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                textAlign: TextAlign.center,
               ),
-              onPressed: () => sendAudioFile(context),
-              icon: Icon(Icons.music_note),
-              label: Text('Identify Song', style: TextStyle(fontSize: 18)),
-            ),
-          ],
+              SizedBox(height: 40),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 30.0,
+                    vertical: 15.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  backgroundColor: Colors.blueAccent,
+                ),
+                onPressed: () => sendAudioFile(context),
+                icon: Icon(Icons.music_note),
+                label: Text('Identify Song', style: TextStyle(fontSize: 18)),
+              ),
+            ],
+          ),
         ),
       ),
     );
