@@ -6,6 +6,7 @@ from pydub import AudioSegment
 import tempfile
 import os
 from pymongo import MongoClient
+from collections import defaultdict, Counter
 
 # === Constants === #
 PEAK_NEIGHBORHOOD_SIZE = 20
@@ -69,31 +70,65 @@ def generate_fingerprint(audio_path):
         print(f"[ERROR] Fingerprint generation failed: {e}")
         return None
 
-# === Match Fingerprint with MongoDB === #
+# === Match Fingerprint with MongoDB (with offset matching + confidence) === #
 def match_fingerprint(input_fingerprints):
     if not input_fingerprints:
         return None
 
-    input_hashes = set(fp["hash"] for fp in input_fingerprints)
+    input_hashes = [fp["hash"] for fp in input_fingerprints]
+    input_offsets = [fp["offset"] for fp in input_fingerprints]
+    input_hash_offset_map = defaultdict(list)
+    for h, o in zip(input_hashes, input_offsets):
+        input_hash_offset_map[h].append(o)
+
     all_songs = songs_collection.find()
 
     best_match = None
-    best_match_count = 0
+    best_match_score = 0
+    best_match_offset_diff = None
 
     for song in all_songs:
-        db_hashes = set(fp["hash"] for fp in song.get("fingerprint", []))
-        common_hashes = input_hashes.intersection(db_hashes)
-        count = len(common_hashes)
+        song_fingerprints = song.get("fingerprint", [])
+        song_hash_offset_map = defaultdict(list)
+        for fp in song_fingerprints:
+            song_hash_offset_map[fp["hash"]].append(fp["offset"])
 
-        if count > best_match_count:
-            best_match_count = count
-            best_match = song
+        offset_diff_counter = Counter()
 
-    if best_match and best_match_count > 5:
+        # Find common hashes and count offset differences
+        for h in input_hash_offset_map:
+            if h in song_hash_offset_map:
+                for input_offset in input_hash_offset_map[h]:
+                    for song_offset in song_hash_offset_map[h]:
+                        diff = song_offset - input_offset
+                        offset_diff_counter[diff] += 1
+
+        if not offset_diff_counter:
+            continue
+
+        # Most common offset difference and how many matches it has
+        most_common_offset, match_count = offset_diff_counter.most_common(1)[0]
+
+        # Calculate confidence score (match count divided by total input hashes)
+        confidence = match_count / len(input_fingerprints)
+
+        # Thresholds for considering a good match
+        MIN_MATCH_COUNT = 10
+        MIN_CONFIDENCE = 0.1  # 10% matches
+
+        if match_count >= MIN_MATCH_COUNT and confidence >= MIN_CONFIDENCE:
+            if match_count > best_match_score:
+                best_match_score = match_count
+                best_match = song
+                best_match_offset_diff = most_common_offset
+
+    if best_match:
         return {
             "song_name": best_match.get("song_name"),
             "artist_name": best_match.get("artist_name", "Unknown Artist"),
-            "match_count": best_match_count
+            "match_count": best_match_score,
+            "offset_difference": best_match_offset_diff,
+            "confidence": best_match_score / len(input_fingerprints)
         }
     else:
         return None
@@ -109,8 +144,20 @@ def process_audio_from_frontend(audio_path):
 
     try:
         fingerprints = generate_fingerprint(wav_path)
-        return match_fingerprint(fingerprints)
+        match_result = match_fingerprint(fingerprints)
+        return match_result
     finally:
         # Delete temp WAV only if it was created
         if wav_path != audio_path and os.path.exists(wav_path):
             os.remove(wav_path)
+
+# === Main test call example (local file) === #
+if __name__ == "__main__":
+    test_audio_path = "test_song.mp3"  # Replace with actual path uploaded from frontend
+    result = process_audio_from_frontend(test_audio_path)
+    if result:
+        print(f"Matched Song: {result['song_name']} by {result['artist_name']}")
+        print(f"Match Count: {result['match_count']}, Confidence: {result['confidence']:.2f}")
+        print(f"Offset Difference: {result['offset_difference']}")
+    else:
+        print("No matching song found.")

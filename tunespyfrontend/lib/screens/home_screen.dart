@@ -3,6 +3,8 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'dart:async';
+
 import 'result_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -10,16 +12,35 @@ class HomeScreen extends StatefulWidget {
   _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   bool isRecording = false;
   FlutterSoundRecorder? _audioRecorder;
   String? audioFilePath;
+
+  late AnimationController _animationController;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
     _audioRecorder = FlutterSoundRecorder();
     _initializeRecorder();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1000),
+    );
+    _animation = Tween<double>(begin: 1.0, end: 1.5).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _animationController.reverse();
+      } else if (status == AnimationStatus.dismissed) {
+        _animationController.forward();
+      }
+    });
   }
 
   Future<void> _initializeRecorder() async {
@@ -62,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         isRecording = true;
       });
+      _animationController.forward();
     } catch (e) {
       print("Error starting recorder: $e");
     }
@@ -80,6 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
         isRecording = false;
         audioFilePath = path;
       });
+      _animationController.stop();
+      _animationController.reset();
     } catch (e) {
       print("Error stopping recorder: $e");
     }
@@ -157,33 +181,56 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _audioRecorder?.closeRecorder();
     _audioRecorder = null;
+    _animationController.dispose();
     super.dispose();
+  }
+
+  Widget buildMicButton() {
+    return ScaleTransition(
+      scale: _animation,
+      child: CircleAvatar(
+        radius: 40,
+        backgroundColor: isRecording ? Colors.redAccent : Colors.blueAccent,
+        child: IconButton(
+          icon: Icon(isRecording ? Icons.stop : Icons.mic),
+          color: Colors.white,
+          iconSize: 40,
+          onPressed: isRecording ? stopRecording : startRecording,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('TuneSpy')),
-      body: Center(
+      appBar: AppBar(
+        title: Text('TuneSpy'),
+        backgroundColor: Colors.blueAccent,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (isRecording)
-              IconButton(
-                icon: Icon(Icons.stop),
-                onPressed: stopRecording,
-                iconSize: 50,
-              )
-            else
-              IconButton(
-                icon: Icon(Icons.mic),
-                onPressed: startRecording,
-                iconSize: 50,
+            buildMicButton(),
+            SizedBox(height: 30),
+            Text(
+              isRecording ? "Recording in progress..." : "Tap the mic to start",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 40),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 30.0, vertical: 15.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                backgroundColor: Colors.blueAccent,
               ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => sendAudioFile(context), // <-- yahin fix hai
-              child: Text('Identify Song'),
+              onPressed: () => sendAudioFile(context),
+              icon: Icon(Icons.music_note),
+              label: Text('Identify Song', style: TextStyle(fontSize: 18)),
             ),
           ],
         ),
