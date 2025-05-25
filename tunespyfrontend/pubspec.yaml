@@ -1,0 +1,25 @@
+name: tunespyfrontend
+description: "A new Flutter project."
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.7.2 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^0.13.6
+  flutter_sound: ^9.2.14
+  permission_handler: ^11.3.0
+  flutter_lints: ^2.0.1
+  path_provider: ^2.0.11
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
