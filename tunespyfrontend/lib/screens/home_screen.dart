@@ -117,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://172.19.25.130:8000/api/recognize/'),
+        Uri.parse('http://172.18.25.71:8000/api/recognize/'),
       );
 
       request.files.add(
